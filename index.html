@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Train Map</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3e;
+      --text: #e8eaf0;
+      --muted: #6b7280;
+      --accent: #4f9cf9;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text);
+    }
+
+    header .icon {
+      font-size: 20px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .line-filter {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .line-btn {
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1.5px solid transparent;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      color: white;
+      opacity: 0.45;
+    }
+
+    .line-btn.active {
+      opacity: 1;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .station-list {
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .station-list::-webkit-scrollbar { width: 4px; }
+    .station-list::-webkit-scrollbar-track { background: transparent; }
+    .station-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .station-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .station-item:hover { background: rgba(255,255,255,0.04); }
+    .station-item.selected { background: rgba(79,156,249,0.1); }
+
+    .station-dot-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .station-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .station-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .station-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    /* Info panel */
+    .info-panel {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      min-height: 120px;
+    }
+
+    .info-panel h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .info-panel .info-lines {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .line-badge {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .info-panel .info-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Map canvas */
+    .map-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #map-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+
+    #map-canvas:active { cursor: grabbing; }
+
+    .zoom-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .zoom-btn {
+      width: 36px;
+      height: 36px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s;
+      line-height: 1;
+    }
+
+    .zoom-btn:hover { background: var(--border); }
+
+    .map-legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .legend-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .legend-line {
+      width: 24px;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 100;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    .tooltip.visible { opacity: 1; }
+    .tooltip .tt-lines { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="icon">🚆</span>
+  <h1>Metro Transit Map</h1>
+  <div class="controls">
+    <div class="line-filter" id="lineFilter"></div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>Stations</h2>
+    </div>
+    <div class="station-list" id="stationList"></div>
+    <div class="info-panel" id="infoPanel">
+      <div class="info-hint">Click a station to see details</div>
+    </div>
+  </div>
+
+  <div class="map-area">
+    <canvas id="map-canvas"></canvas>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn">+</button>
+      <button class="zoom-btn" id="zoomOut">−</button>
+    </div>
+    <div class="map-legend" id="legend"></div>
+    <div class="tooltip" id="tooltip">
+      <div class="tt-name"></div>
+      <div class="tt-lines"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Data ────────────────────────────────────────────────────────────────────
+const LINES = [
+  {
+    id: 'red',
+    name: 'Red Line',
+    color: '#e53e3e',
+    stations: ['Central Park', 'Midtown East', 'Grand Central', 'Union Square', 'Canal Street', 'Brooklyn Bridge', 'Atlantic Terminal'],
+  },
+  {
+    id: 'blue',
+    name: 'Blue Line',
+    color: '#3182ce',
+    stations: ['Airport', 'Harbor View', 'Downtown West', 'Central Park', 'Uptown', 'Heights', 'Northgate'],
+  },
+  {
+    id: 'green',
+    name: 'Green Line',
+    color: '#38a169',
+    stations: ['Westfield', 'Riverside', 'Downtown West', 'Grand Central', 'Eastside', 'University', 'Stadium', 'Greenpark'],
+  },
+  {
+    id: 'orange',
+    name: 'Orange Line',
+    color: '#dd6b20',
+    stations: ['Northgate', 'Parkway', 'Midtown East', 'Grand Central', 'Union Square', 'Southpark', 'Bay Shore'],
+  },
+  {
+    id: 'purple',
+    name: 'Purple Line',
+    color: '#805ad5',
+    stations: ['Harbor View', 'Museum District', 'Central Park', 'Union Square', 'University', 'Tech Hub', 'East End'],
+  },
+];
+
+// Build station registry
+const stationMap = {};
+LINES.forEach(line => {
+  line.stations.forEach((name, i) => {
+    if (!stationMap[name]) stationMap[name] = { name, lines: [], order: {} };
+    stationMap[name].lines.push(line.id);
+    stationMap[name].order[line.id] = i;
+  });
+});
+
+// Assign grid positions using a simple spring-like layout
+const STATION_POSITIONS = {
+  'Airport':          [0.08, 0.18],
+  'Harbor View':      [0.14, 0.38],
+  'Northgate':        [0.20, 0.08],
+  'Parkway':          [0.30, 0.15],
+  'Heights':          [0.22, 0.28],
+  'Westfield':        [0.08, 0.60],
+  'Riverside':        [0.22, 0.60],
+  'Downtown West':    [0.32, 0.48],
+  'Museum District':  [0.28, 0.70],
+  'Central Park':     [0.44, 0.30],
+  'Midtown East':     [0.54, 0.22],
+  'Uptown':           [0.40, 0.15],
+  'Grand Central':    [0.56, 0.40],
+  'Eastside':         [0.68, 0.55],
+  'Union Square':     [0.56, 0.56],
+  'University':       [0.52, 0.70],
+  'Canal Street':     [0.62, 0.70],
+  'Stadium':          [0.72, 0.68],
+  'Brooklyn Bridge':  [0.66, 0.82],
+  'Atlantic Terminal':[0.56, 0.90],
+  'Southpark':        [0.62, 0.85],
+  'Tech Hub':         [0.76, 0.42],
+  'East End':         [0.86, 0.55],
+  'Greenpark':        [0.82, 0.72],
+  'Bay Shore':        [0.78, 0.90],
+};
+
+const stations = Object.values(stationMap);
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let activeLines = new Set(LINES.map(l => l.id));
+let selectedStation = null;
+let offsetX = 0, offsetY = 0, scale = 1;
+let isDragging = false, lastMX = 0, lastMY = 0;
+
+// ─── Canvas ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('map-canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = canvas.offsetWidth * devicePixelRatio;
+  canvas.height = canvas.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  draw();
+}
+
+function worldToScreen(fx, fy) {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  return [(fx * W + offsetX) * scale, (fy * H + offsetY) * scale];
+}
+
+function screenToWorld(sx, sy) {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  return [sx / scale / W - offsetX / W, sy / scale / H - offsetY / H];
+}
+
+function stationPos(name) {
+  const p = STATION_POSITIONS[name] || [0.5, 0.5];
+  return worldToScreen(p[0], p[1]);
+}
+
+function draw() {
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid (subtle)
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Draw lines
+  LINES.forEach(line => {
+    if (!activeLines.has(line.id)) return;
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    line.stations.forEach((name, i) => {
+      const [x, y] = stationPos(name);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+
+  // Draw station nodes
+  stations.forEach(station => {
+    const visLines = station.lines.filter(l => activeLines.has(l));
+    if (visLines.length === 0) return;
+
+    const [x, y] = stationPos(station.name);
+    const isSelected = selectedStation === station.name;
+    const isTransfer = visLines.length > 1;
+    const r = isTransfer ? 10 : 7;
+
+    // Outer ring for selected
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(79,156,249,0.25)';
+      ctx.fill();
+    }
+
+    // White fill
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? '#4f9cf9' : '#ffffff';
+    ctx.fill();
+
+    // Colored border from first active line
+    const lineColor = LINES.find(l => l.id === visLines[0])?.color || '#fff';
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = isTransfer ? 3 : 2.5;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = isSelected ? '#4f9cf9' : 'rgba(230,235,245,0.9)';
+    ctx.font = `${isTransfer ? 600 : 400} ${isTransfer ? 12 : 11}px Inter, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(station.name, x + r + 5, y + 4);
+  });
+}
+
+// ─── Interactions ─────────────────────────────────────────────────────────────
+canvas.addEventListener('mousedown', e => {
+  isDragging = false;
+  lastMX = e.clientX;
+  lastMY = e.clientY;
+  canvas.addEventListener('mousemove', onDrag);
+  canvas.addEventListener('mouseup', onUp);
+});
+
+function onDrag(e) {
+  const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
+  if (Math.abs(dx) + Math.abs(dy) > 3) isDragging = true;
+  offsetX += dx / scale;
+  offsetY += dy / scale;
+  lastMX = e.clientX;
+  lastMY = e.clientY;
+  draw();
+}
+
+function onUp(e) {
+  canvas.removeEventListener('mousemove', onDrag);
+  canvas.removeEventListener('mouseup', onUp);
+  if (!isDragging) handleClick(e);
+}
+
+function handleClick(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let closest = null, minDist = 18;
+  stations.forEach(station => {
+    const vis = station.lines.filter(l => activeLines.has(l));
+    if (!vis.length) return;
+    const [sx, sy] = stationPos(station.name);
+    const d = Math.hypot(mx - sx, my - sy);
+    if (d < minDist) { minDist = d; closest = station.name; }
+  });
+  selectedStation = closest;
+  draw();
+  updateSidebar();
+}
+
+// Hover tooltip
+const tooltip = document.getElementById('tooltip');
+canvas.addEventListener('mousemove', e => {
+  if (isDragging) { tooltip.classList.remove('visible'); return; }
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let closest = null, minDist = 18;
+  stations.forEach(station => {
+    const vis = station.lines.filter(l => activeLines.has(l));
+    if (!vis.length) return;
+    const [sx, sy] = stationPos(station.name);
+    const d = Math.hypot(mx - sx, my - sy);
+    if (d < minDist) { minDist = d; closest = station; }
+  });
+  if (closest) {
+    tooltip.querySelector('.tt-name').textContent = closest.name;
+    const lineNames = closest.lines.filter(l => activeLines.has(l)).map(id => LINES.find(l => l.id === id)?.name).join(', ');
+    tooltip.querySelector('.tt-lines').textContent = lineNames;
+    tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    tooltip.classList.add('visible');
+  } else {
+    tooltip.classList.remove('visible');
+  }
+});
+
+canvas.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+
+// Zoom
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.91;
+  scale = Math.min(4, Math.max(0.4, scale * factor));
+  draw();
+}, { passive: false });
+
+document.getElementById('zoomIn').onclick = () => { scale = Math.min(4, scale * 1.2); draw(); };
+document.getElementById('zoomOut').onclick = () => { scale = Math.max(0.4, scale / 1.2); draw(); };
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function buildSidebar() {
+  const list = document.getElementById('stationList');
+  const sorted = [...stations].sort((a, b) => a.name.localeCompare(b.name));
+  sorted.forEach(station => {
+    const div = document.createElement('div');
+    div.className = 'station-item';
+    div.dataset.name = station.name;
+
+    const dots = document.createElement('div');
+    dots.className = 'station-dot-group';
+    station.lines.forEach(lineId => {
+      const d = document.createElement('div');
+      d.className = 'station-dot';
+      const line = LINES.find(l => l.id === lineId);
+      d.style.background = line.color;
+      d.style.borderColor = line.color;
+      dots.appendChild(d);
+    });
+
+    const info = document.createElement('div');
+    info.innerHTML = `<div class="station-name">${station.name}</div><div class="station-meta">${station.lines.length} line${station.lines.length > 1 ? 's' : ''}</div>`;
+
+    div.appendChild(dots);
+    div.appendChild(info);
+    div.onclick = () => {
+      selectedStation = station.name;
+      draw();
+      updateSidebar();
+      // Pan to station
+      const p = STATION_POSITIONS[station.name] || [0.5, 0.5];
+      const W = canvas.offsetWidth, H = canvas.offsetHeight;
+      offsetX = W / 2 / scale - p[0] * W;
+      offsetY = H / 2 / scale - p[1] * H;
+      draw();
+    };
+    list.appendChild(div);
+  });
+}
+
+function updateSidebar() {
+  // Highlight in list
+  document.querySelectorAll('.station-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.name === selectedStation);
+  });
+
+  // Info panel
+  const panel = document.getElementById('infoPanel');
+  if (!selectedStation) {
+    panel.innerHTML = '<div class="info-hint">Click a station to see details</div>';
+    return;
+  }
+  const station = stationMap[selectedStation];
+  const lineHTML = station.lines.map(id => {
+    const line = LINES.find(l => l.id === id);
+    return `<span class="line-badge" style="background:${line.color}">${line.name}</span>`;
+  }).join('');
+  panel.innerHTML = `
+    <h3>${station.name}</h3>
+    <div class="info-lines">${lineHTML}</div>
+    <div class="info-hint">${station.lines.length === 1 ? 'Single line station' : 'Transfer station — ' + station.lines.length + ' lines'}</div>
+  `;
+}
+
+// ─── Line filter ──────────────────────────────────────────────────────────────
+function buildLineFilter() {
+  const container = document.getElementById('lineFilter');
+  LINES.forEach(line => {
+    const btn = document.createElement('button');
+    btn.className = 'line-btn active';
+    btn.textContent = line.name;
+    btn.style.background = line.color;
+    btn.dataset.id = line.id;
+    btn.onclick = () => {
+      if (activeLines.has(line.id)) {
+        if (activeLines.size === 1) return; // keep at least one
+        activeLines.delete(line.id);
+        btn.classList.remove('active');
+      } else {
+        activeLines.add(line.id);
+        btn.classList.add('active');
+      }
+      draw();
+    };
+    container.appendChild(btn);
+  });
+}
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
+function buildLegend() {
+  const leg = document.getElementById('legend');
+  leg.innerHTML = `<div class="legend-title">Lines</div>` +
+    LINES.map(line =>
+      `<div class="legend-item"><div class="legend-line" style="background:${line.color}"></div>${line.name}</div>`
+    ).join('');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', resize);
+buildSidebar();
+buildLineFilter();
+buildLegend();
+resize();
+</script>
+</body>
+</html>
